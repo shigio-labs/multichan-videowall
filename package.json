@@ -60,6 +60,7 @@
   "build": {
     "appId": "dev.videowall.app",
     "productName": "multichan-videowall",
+    "publish": null,
     "asar": true,
     "files": [
       "electron/**/*",
