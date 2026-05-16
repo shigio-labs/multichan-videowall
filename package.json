@@ -1,0 +1,100 @@
+{
+  "name": "multichan-videowall",
+  "productName": "multichan-videowall",
+  "version": "2.0.0",
+  "description": "Desktop & web video aggregator for imageboards: 2ch.hk, 4chan, lainchan, kohlchan/krautchan, kissu.moe, wizchan. Streams mp4/webm from imageboard threads through a unified UI with 5 themes.",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "author": "shigio-labs",
+  "license": "MIT",
+  "homepage": "https://github.com/shigio-labs/multichan-videowall",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shigio-labs/multichan-videowall.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shigio-labs/multichan-videowall/issues"
+  },
+  "keywords": [
+    "imageboard",
+    "video-aggregator",
+    "video-wall",
+    "2ch",
+    "2ch.hk",
+    "4chan",
+    "4chan-downloader",
+    "lainchan",
+    "kohlchan",
+    "krautchan",
+    "kissu",
+    "wizchan",
+    "vichan",
+    "lynxchan",
+    "makaba",
+    "webm",
+    "mp4",
+    "electron",
+    "electron-app",
+    "express",
+    "self-hosted",
+    "desktop-app",
+    "pwa"
+  ],
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "electron": "electron .",
+    "dist": "electron-builder --win portable nsis",
+    "dist:portable": "electron-builder --win portable",
+    "dist:installer": "electron-builder --win nsis"
+  },
+  "dependencies": {
+    "express": "^4.22.1",
+    "p-limit": "^6.1.0",
+    "undici": "^7.22.0"
+  },
+  "devDependencies": {
+    "electron": "^42.0.1",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "dev.videowall.app",
+    "productName": "multichan-videowall",
+    "asar": true,
+    "files": [
+      "electron/**/*",
+      "server.js",
+      "public/**/*",
+      "package.json",
+      "node_modules/**/*",
+      "!node_modules/electron/**",
+      "!node_modules/electron-builder/**",
+      "!**/.idea${/*}",
+      "!**/.claude${/*}",
+      "!**/{.git,.github,.vscode}${/*}"
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        { "target": "portable", "arch": ["x64"] },
+        { "target": "nsis",     "arch": ["x64"] }
+      ],
+      "artifactName": "multichan-videowall-${version}-${arch}.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Video Wall"
+    },
+    "portable": {
+      "artifactName": "multichan-videowall-${version}-portable.${ext}"
+    }
+  }
+}

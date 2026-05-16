@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>multichan-videowall — 2ch / 4chan / lainchan / kohlchan / kissu / wizchan</title>
+  <meta name="description" content="Desktop & web video aggregator for imageboards: streams mp4/webm from threads on 2ch.hk, 4chan, lainchan, kohlchan (krautchan), kissu.moe, wizchan through a unified UI with 5 themes and dark/light modes."/>
+  <meta name="keywords" content="imageboard, video aggregator, 2ch, 2ch.hk, 4chan, lainchan, kohlchan, krautchan, kissu, wizchan, webm, mp4, vichan, lynxchan, makaba, video wall, electron"/>
+  <meta name="author" content="shigio-labs"/>
+  <meta property="og:title" content="multichan-videowall"/>
+  <meta property="og:description" content="Multi-site video aggregator for 2ch, 4chan, lainchan, kohlchan, kissu, wizchan. Desktop app + PWA."/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/styles.css"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml"/>
+  <meta name="theme-color" content="#000000"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="multichan"/>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">
+        <span class="logo-dot"></span>
+        <span class="logo-text"><em>multi</em>chan</span>
+      </div>
+      <div class="logo-sub">videowall · aggregator</div>
+    </div>
+
+    <div class="nav-wrap">
+      <div class="nav-search">
+        <input id="boardFilter" placeholder="Search board…" autocomplete="off"/>
+      </div>
+      <div id="nav" class="nav-tree"></div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="footer-status">
+        <div class="s-dot" id="sDot"></div>
+        <div class="s-txt" id="sTxt">—</div>
+      </div>
+      <div class="footer-count" id="sCount">0</div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <div class="main">
+
+    <div class="header-stack">
+    <!-- Site switcher (top) -->
+    <div class="site-bar">
+      <div class="site-tabs" id="siteTabs"></div>
+      <div class="site-bar-right">
+        <div class="theme-switcher" id="themeSwitcher" title="Switch theme"></div>
+        <div class="site-meta" id="siteMeta"></div>
+      </div>
+    </div>
+
+    <header class="topbar">
+      <div class="top-left">
+        <div class="top-board" id="topBoard">Loading…</div>
+        <div class="top-info" id="topInfo">—</div>
+      </div>
+
+      <label class="mobile-board">
+        <select id="mobileBoard"></select>
+      </label>
+
+      <div class="top-right">
+        <div class="filter-bar">
+          <select id="fExt" title="File type">
+            <option value="">all</option>
+            <option value="mp4">mp4</option>
+            <option value="webm">webm</option>
+          </select>
+          <div class="filter-sep"></div>
+          <select id="fSort" title="Sort by">
+            <option value="">default</option>
+            <option value="sizeDesc">size ↓</option>
+            <option value="sizeAsc">size ↑</option>
+            <option value="thread">by thread</option>
+          </select>
+        </div>
+
+        <button class="btn btn-slide" id="ssBtn" title="Slideshow (8s)">
+          <span class="btn-ic">▶</span> Slideshow
+        </button>
+
+        <button class="btn btn-icon" id="densityBtn" title="Grid density">▦</button>
+
+        <button class="btn btn-accent" id="refreshBtn" title="Refresh (always fresh)">
+          <span class="btn-ic">↺</span> Refresh
+        </button>
+      </div>
+    </header>
+
+    </div><!-- /.header-stack -->
+
+    <div class="content">
+      <div class="grid" id="grid"></div>
+      <div class="hint" id="hint"></div>
+      <div id="sentinel" style="height:1px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- FAB -->
+<button class="fab" id="fab" aria-label="Back to top">↑</button>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- ── MODAL PLAYER ── -->
+<div class="modal" id="modal" role="dialog" aria-modal="true">
+  <div class="sheet">
+    <div class="sheet-top">
+      <div class="sheet-title" id="sheetTitle">—</div>
+      <div class="sheet-btns">
+        <button class="btn" id="copyBtn" title="Copy link">🔗 Link</button>
+        <button class="btn" id="dlBtn" title="Download">⬇ Download</button>
+        <button class="btn" id="prevBtn">← Prev</button>
+        <button class="btn" id="nextBtn">Next →</button>
+        <button class="btn btn-accent" id="closeBtn">✕</button>
+      </div>
+    </div>
+    <div class="ss-bar" id="ssBar"><div class="ss-bar-fill" id="ssBarFill"></div></div>
+    <div class="player-wrap"><video id="mVid" controls playsinline></video></div>
+    <div class="sheet-keys">
+      <div class="key-hint"><span class="key">←→</span> navigate</div>
+      <div class="key-hint"><span class="key">Space</span> pause</div>
+      <div class="key-hint"><span class="key">F</span> fullscreen</div>
+      <div class="key-hint"><span class="key">M</span> mute</div>
+      <div class="key-hint"><span class="key">Esc</span> close</div>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js" defer></script>
+</body>
+</html>
