@@ -7,7 +7,9 @@
 [![Node](https://img.shields.io/badge/node-20+-339933.svg)](https://nodejs.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Web-lightgrey.svg)]()
 
-<!-- screenshots will go here once docs/*.png are committed -->
+| 🇷🇺 2ch.hk · /s/ | 🇺🇸 4chan · /wsg/ | 🇩🇪 Kohlchan · /b/ |
+|---|---|---|
+| ![2ch screenshot](docs/screenshot-2ch.png) | ![4chan screenshot](docs/screenshot-4chan.png) | ![Kohlchan screenshot](docs/screenshot-kohlchan.png) |
 
 ---
 
