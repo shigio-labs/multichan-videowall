@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          # no cache: npm — we don't commit package-lock.json
 
       - name: Install dependencies
         run: npm install
