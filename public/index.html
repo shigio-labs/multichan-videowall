@@ -94,6 +94,10 @@
           <span class="btn-ic">▶</span> Slideshow
         </button>
 
+        <button class="btn" id="downloadAllBtn" title="Download all videos from this board" hidden>
+          <span class="btn-ic">↓</span> Download all
+        </button>
+
         <button class="btn btn-icon" id="densityBtn" title="Grid density">▦</button>
 
         <button class="btn btn-accent" id="refreshBtn" title="Refresh (always fresh)">
@@ -117,6 +121,19 @@
 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
+
+<!-- Download progress -->
+<div class="download-panel" id="downloadPanel" hidden>
+  <div class="download-panel-top">
+    <div class="download-title" id="downloadTitle">Download</div>
+    <div class="download-actions">
+      <button class="btn btn-icon" id="downloadCancelBtn" title="Cancel download">×</button>
+      <button class="btn btn-icon" id="downloadHideBtn" title="Hide">−</button>
+    </div>
+  </div>
+  <div class="download-bar"><div class="download-bar-fill" id="downloadBarFill"></div></div>
+  <div class="download-meta" id="downloadMeta">Waiting...</div>
+</div>
 
 <!-- ── MODAL PLAYER ── -->
 <div class="modal" id="modal" role="dialog" aria-modal="true">

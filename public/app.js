@@ -2,6 +2,17 @@
 const $ = id => document.getElementById(id);
 const proxy = (url, dl) => '/proxy?src=' + encodeURIComponent(url) + (dl ? '&dl=1' : '');
 const fmtSize = kb => kb > 1024 ? (kb/1024).toFixed(1) + 'MB' : kb + 'KB';
+const fmtBytes = bytes => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${value >= 10 || unit === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unit]}`;
+};
 
 // ── Themes ────────────────────────────────────────────────────────────────
 const THEMES = [
@@ -79,7 +90,8 @@ function showToast(msg, ms = 2200) {
 }
 
 // ── State (no persistence — fresh every navigation) ────────────────────────
-const CHUNK = 60;
+const CHUNK = 120;
+const MAX_PAGE_VIDEOS = 1500;
 let sites      = [];
 let categories = [];
 let activeSite  = '2ch';
@@ -95,6 +107,8 @@ let fetchingMore = false;
 let filterExt  = '';
 let filterSort = '';
 let boardFilter = '';
+let downloadRunning = false;
+let downloadPanelDismissed = false;
 
 // ── Filtered list ──
 function filteredVideos() {
@@ -103,7 +117,7 @@ function filteredVideos() {
   if (filterSort === 'sizeDesc') list = [...list].sort((a, b) => b.size - a.size);
   if (filterSort === 'sizeAsc')  list = [...list].sort((a, b) => a.size - b.size);
   if (filterSort === 'thread')   list = [...list].sort((a, b) => Number(a.thread) - Number(b.thread));
-  return list;
+  return list.slice(0, MAX_PAGE_VIDEOS);
 }
 
 // ── Status bar ──
@@ -115,6 +129,122 @@ function setStatus(s, msg) {
 function updateCount() {
   sCount.textContent = videos.length;
 }
+
+// ── Electron downloads ──
+const downloadsApi = window.multichanDownloads;
+const downloadAllBtn = $('downloadAllBtn');
+const downloadPanel = $('downloadPanel');
+const downloadTitle = $('downloadTitle');
+const downloadMeta = $('downloadMeta');
+const downloadBarFill = $('downloadBarFill');
+const downloadCancelBtn = $('downloadCancelBtn');
+const downloadHideBtn = $('downloadHideBtn');
+
+function updateDownloadButton() {
+  if (!downloadAllBtn) return;
+  downloadAllBtn.hidden = !downloadsApi;
+  downloadAllBtn.disabled = downloadRunning || videos.length === 0;
+  downloadAllBtn.title = videos.length
+    ? `Download ${videos.length} videos from this board`
+    : 'No videos to download';
+}
+
+function boardDownloadPayload() {
+  const site = getSite(activeSite);
+  const board = getBoardMeta(activeSite, activeBoard);
+  return {
+    siteId: activeSite,
+    siteName: site?.name || activeSite,
+    boardId: activeBoard,
+    boardTitle: board?.title || '',
+    videos: videos.map(v => ({
+      url: v.url,
+      ext: v.ext,
+      size: v.size,
+      thread: v.thread,
+      site: v.site,
+      board: v.board,
+    })),
+  };
+}
+
+function renderDownloadProgress(progress = {}) {
+  if (!downloadPanel) return;
+
+  const status = progress.status || 'running';
+  const total = progress.total || 0;
+  const completed = progress.completed || 0;
+  const failed = progress.failed || 0;
+  const percent = Math.max(0, Math.min(100, Math.round(progress.percent || 0)));
+  const running = status === 'starting' || status === 'running';
+  downloadRunning = running;
+
+  downloadPanel.hidden = downloadPanelDismissed;
+  downloadPanel.classList.toggle('done', status === 'done');
+  downloadPanel.classList.toggle('error', status === 'error' || failed > 0);
+  downloadPanel.classList.toggle('cancelled', status === 'cancelled');
+  downloadCancelBtn.hidden = !running;
+  downloadHideBtn.hidden = false;
+  downloadBarFill.style.width = percent + '%';
+
+  const boardPart = progress.boardId ? `/${progress.boardId}/` : 'board';
+  downloadTitle.textContent = status === 'done'
+    ? 'Download complete'
+    : status === 'cancelled'
+      ? 'Download cancelled'
+      : status === 'error'
+        ? 'Download error'
+        : `Downloading ${boardPart}`;
+
+  const countText = `${completed + failed}/${total}`;
+  const failText = failed ? ` · ${failed} failed` : '';
+  const bytesText = progress.downloadedBytes
+    ? ` · ${fmtBytes(progress.downloadedBytes)}`
+    : '';
+  const currentText = running && progress.current ? ` · ${progress.current}` : '';
+  downloadMeta.textContent = `${percent}% · ${countText}${failText}${bytesText}${currentText}`;
+
+  updateDownloadButton();
+}
+
+if (downloadsApi && downloadAllBtn) {
+  downloadAllBtn.hidden = false;
+  downloadAllBtn.onclick = async () => {
+    if (downloadRunning) return;
+    if (!videos.length) {
+      showToast('No videos to download');
+      return;
+    }
+
+    downloadAllBtn.disabled = true;
+    downloadPanelDismissed = false;
+    try {
+      const result = await downloadsApi.startBoardDownload(boardDownloadPayload());
+      if (result?.cancelled) {
+        updateDownloadButton();
+        return;
+      }
+      if (!result?.ok) throw new Error(result?.error || 'Download failed to start');
+      showToast(`Download started: ${result.total} files`);
+    } catch (error) {
+      showToast(error.message || 'Download failed to start');
+      downloadRunning = false;
+      updateDownloadButton();
+    }
+  };
+
+  downloadsApi.onProgress(renderDownloadProgress);
+}
+
+downloadCancelBtn?.addEventListener('click', () => {
+  downloadPanelDismissed = true;
+  if (downloadPanel) downloadPanel.hidden = true;
+  downloadsApi?.cancelDownload().catch(() => {});
+});
+downloadHideBtn?.addEventListener('click', () => {
+  downloadPanelDismissed = true;
+  if (downloadPanel) downloadPanel.hidden = true;
+});
 
 // ── Site lookup ──
 function getSite(id)            { return sites.find(s => s.id === id); }
@@ -246,9 +376,12 @@ function rerender() {
   grid.innerHTML = '';
   if (!videos.length) {
     grid.innerHTML = '<div class="empty"><div class="ico">🎬</div><b>Empty for now</b><p>Hit «Refresh» or pick another board</p></div>';
+    updateDownloadButton();
     return;
   }
   renderChunk();
+  updateDownloadButton();
+  scheduleRenderMore();
 }
 
 // ── Lazy poster observer ──
@@ -348,13 +481,34 @@ function renderChunk() {
 }
 
 // ── Infinite scroll ──
+function shouldRenderMore() {
+  if (rendered >= filteredVideos().length) return false;
+  const sentinel = $('sentinel');
+  if (!sentinel) return false;
+  const distance = sentinel.getBoundingClientRect().top - window.innerHeight;
+  return distance < 1200;
+}
+
+function scheduleRenderMore() {
+  if (fetchingMore) return;
+  fetchingMore = true;
+  requestAnimationFrame(() => {
+    fetchingMore = false;
+    if (!shouldRenderMore()) return;
+    renderChunk();
+    if (shouldRenderMore()) scheduleRenderMore();
+  });
+}
+
 const scrollIO = new IntersectionObserver(entries => {
   for (const e of entries) {
     if (!e.isIntersecting) continue;
-    if (rendered < filteredVideos().length) renderChunk();
+    scheduleRenderMore();
   }
 }, { rootMargin: '900px 0px' });
 scrollIO.observe($('sentinel'));
+window.addEventListener('scroll', scheduleRenderMore, { passive: true });
+window.addEventListener('resize', scheduleRenderMore);
 
 // ── Fetch ── (always fresh, no client cache)
 async function loadBoard(siteId, boardId) {
@@ -381,9 +535,11 @@ async function loadBoard(siteId, boardId) {
       grid.innerHTML = '<div class="empty"><div class="ico">🎬</div><b>No videos found</b><p>No mp4/webm on this board right now</p></div>';
     } else {
       renderChunk();
+      scheduleRenderMore();
     }
 
     updateCount();
+    updateDownloadButton();
     const ms = Math.round(performance.now() - t0);
     updateTop(`${videos.length} videos · loaded in ${ms}ms`);
     setStatus('ok', 'ok');
@@ -406,6 +562,8 @@ function switchBoard(boardId) {
   videos = [];
   rendered = 0;
   currentIdx = -1;
+  updateCount();
+  updateDownloadButton();
   buildNav();
   window.scrollTo({ top: 0, behavior: 'smooth' });
   loadBoard(activeSite, activeBoard);
@@ -420,6 +578,8 @@ function switchSite(siteId) {
   videos = [];
   rendered = 0;
   currentIdx = -1;
+  updateCount();
+  updateDownloadButton();
   buildSiteTabs();
   buildNav();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -429,6 +589,8 @@ function switchSite(siteId) {
 function refresh() {
   videos = [];
   rendered = 0;
+  updateCount();
+  updateDownloadButton();
   loadBoard(activeSite, activeBoard);
 }
 
@@ -625,6 +787,7 @@ async function init() {
 
   buildSiteTabs();
   buildNav();
+  updateDownloadButton();
   await loadBoard(activeSite, activeBoard);
 }
 

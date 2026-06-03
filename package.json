@@ -1,7 +1,7 @@
 {
   "name": "multichan-videowall",
   "productName": "multichan-videowall",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Desktop & web video aggregator for imageboards: 2ch.hk, 4chan, lainchan, kohlchan/krautchan, kissu.moe, wizchan. Streams mp4/webm from imageboard threads through a unified UI with 5 themes.",
   "type": "module",
   "main": "electron/main.cjs",
