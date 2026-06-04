@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.2.0 - Image mode and more boards
+
+### Added
+
+- `Video / IMG` switcher for browsing either videos or images from the same board list.
+- Image modal viewer with download/copy/navigation support.
+- Image filtering for `jpg`, `jpeg`, `png`, `gif`, and `webp`.
+- New supported sites: Uboachan, Smuglo, Arisuchan, and Endchan.
+- Endchan-specific catalog/thread fetcher.
+
+### Improved
+
+- Batch download now follows the selected media mode and can save either videos or images.
+- Project metadata now describes media support instead of video-only browsing.
+
+### Fixed
+
+- Broken or missing board thumbnails now fall back to alternate thumbs, original images, or the first video frame.
+
 ## 2.1.0 - Batch download and stability fixes
 
 ### Added

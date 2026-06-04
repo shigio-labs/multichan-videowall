@@ -1,7 +1,7 @@
 {
   "name": "multichan-videowall",
   "short_name": "multichan",
-  "description": "2ch / 4chan / lainchan / kohlchan / kissu / wizchan video aggregator",
+  "description": "2ch / 4chan / lainchan / kohlchan / kissu / wizchan / Uboachan / Smuglo / Arisuchan / Endchan media aggregator",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

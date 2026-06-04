@@ -44,21 +44,21 @@ function sanitizePathSegment(value, fallback = 'item') {
   return (clean || fallback).slice(0, 120);
 }
 
-function filenameFromVideo(video, index) {
-  let base = 'video';
+function filenameFromMedia(item, index) {
+  let base = 'media';
   try {
-    const u = new URL(video.url);
+    const u = new URL(item.url);
     base = decodeURIComponent(path.basename(u.pathname)) || base;
   } catch {
-    base = path.basename(String(video.url || '')) || base;
+    base = path.basename(String(item.url || '')) || base;
   }
 
-  base = sanitizePathSegment(base, `video-${index + 1}`);
-  if (!path.extname(base) && video.ext) base += `.${sanitizePathSegment(video.ext, 'mp4')}`;
+  base = sanitizePathSegment(base, `media-${index + 1}`);
+  if (!path.extname(base) && item.ext) base += `.${sanitizePathSegment(item.ext, 'bin')}`;
 
   const prefix = String(index + 1).padStart(4, '0');
-  const thread = sanitizePathSegment(video.thread || 'thread', 'thread');
-  return sanitizePathSegment(`${prefix}_${thread}_${base}`, `video-${index + 1}`).slice(0, 180);
+  const thread = sanitizePathSegment(item.thread || 'thread', 'thread');
+  return sanitizePathSegment(`${prefix}_${thread}_${base}`, `media-${index + 1}`).slice(0, 180);
 }
 
 async function uniqueFilePath(dir, filename) {
@@ -86,7 +86,7 @@ function emitDownloadProgress(job, patch = {}, force = false) {
 }
 
 async function downloadOne(job, video, index) {
-  const filename = filenameFromVideo(video, index);
+  const filename = filenameFromMedia(video, index);
   const filePath = await uniqueFilePath(job.outputDir, filename);
   const proxyUrl = `http://localhost:${serverPort}/proxy?src=${encodeURIComponent(video.url)}&dl=1`;
   const res = await fetch(proxyUrl, { signal: job.abort.signal });
@@ -185,7 +185,7 @@ function registerDownloadIpc() {
       : [];
 
     if (!videos.length) {
-      return { ok: false, error: 'No videos to download' };
+      return { ok: false, error: 'No media to download' };
     }
 
     const result = await dialog.showOpenDialog(mainWindow, {

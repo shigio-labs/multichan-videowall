@@ -92,10 +92,15 @@ function showToast(msg, ms = 2200) {
 // ── State (no persistence — fresh every navigation) ────────────────────────
 const CHUNK = 120;
 const MAX_PAGE_VIDEOS = 1500;
+const MEDIA_FILTERS = {
+  video: ['mp4', 'webm'],
+  image: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+};
 let sites      = [];
 let categories = [];
 let activeSite  = '2ch';
 let activeBoard = 'b';
+let activeMedia = 'video';
 
 // Per-board cache lives ONLY for current board; cleared on every switch.
 let videos    = [];      // raw videos for current board
@@ -118,6 +123,11 @@ function filteredVideos() {
   if (filterSort === 'sizeAsc')  list = [...list].sort((a, b) => a.size - b.size);
   if (filterSort === 'thread')   list = [...list].sort((a, b) => Number(a.thread) - Number(b.thread));
   return list.slice(0, MAX_PAGE_VIDEOS);
+}
+
+function mediaLabel(count = videos.length) {
+  if (activeMedia === 'image') return count === 1 ? 'image' : 'images';
+  return count === 1 ? 'video' : 'videos';
 }
 
 // ── Status bar ──
@@ -145,8 +155,8 @@ function updateDownloadButton() {
   downloadAllBtn.hidden = !downloadsApi;
   downloadAllBtn.disabled = downloadRunning || videos.length === 0;
   downloadAllBtn.title = videos.length
-    ? `Download ${videos.length} videos from this board`
-    : 'No videos to download';
+    ? `Download ${videos.length} ${mediaLabel()} from this board`
+    : `No ${mediaLabel(0)} to download`;
 }
 
 function boardDownloadPayload() {
@@ -157,9 +167,11 @@ function boardDownloadPayload() {
     siteName: site?.name || activeSite,
     boardId: activeBoard,
     boardTitle: board?.title || '',
+    media: activeMedia,
     videos: videos.map(v => ({
       url: v.url,
       ext: v.ext,
+      media: v.media || activeMedia,
       size: v.size,
       thread: v.thread,
       site: v.site,
@@ -212,7 +224,7 @@ if (downloadsApi && downloadAllBtn) {
   downloadAllBtn.onclick = async () => {
     if (downloadRunning) return;
     if (!videos.length) {
-      showToast('No videos to download');
+      showToast(`No ${mediaLabel(0)} to download`);
       return;
     }
 
@@ -371,11 +383,48 @@ function updateTop(msg) {
 $('fExt').onchange  = () => { filterExt  = $('fExt').value;  rerender(); };
 $('fSort').onchange = () => { filterSort = $('fSort').value; rerender(); };
 
+function buildExtFilter() {
+  const el = $('fExt');
+  if (!el) return;
+  el.innerHTML = '<option value="">all</option>';
+  for (const ext of MEDIA_FILTERS[activeMedia] || []) {
+    const opt = document.createElement('option');
+    opt.value = ext;
+    opt.textContent = ext;
+    el.appendChild(opt);
+  }
+  el.value = filterExt;
+}
+
+function applyMediaMode(mode) {
+  activeMedia = mode === 'image' ? 'image' : 'video';
+  filterExt = '';
+  buildExtFilter();
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.media === activeMedia);
+  });
+}
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const mode = btn.dataset.media === 'image' ? 'image' : 'video';
+    if (mode === activeMedia) return;
+    applyMediaMode(mode);
+    videos = [];
+    rendered = 0;
+    currentIdx = -1;
+    updateCount();
+    updateDownloadButton();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    loadBoard(activeSite, activeBoard);
+  });
+});
+
 function rerender() {
   rendered = 0;
   grid.innerHTML = '';
   if (!videos.length) {
-    grid.innerHTML = '<div class="empty"><div class="ico">🎬</div><b>Empty for now</b><p>Hit «Refresh» or pick another board</p></div>';
+    grid.innerHTML = `<div class="empty"><div class="ico">${activeMedia === 'image' ? 'IMG' : '🎬'}</div><b>Empty for now</b><p>Hit «Refresh» or pick another board</p></div>`;
     updateDownloadButton();
     return;
   }
@@ -384,9 +433,76 @@ function rerender() {
   scheduleRenderMore();
 }
 
+function uniqueUrls(urls) {
+  return [...new Set(urls.filter(Boolean))];
+}
+
+function urlExt(url) {
+  const raw = String(url || '').split('?')[0];
+  return raw.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() || '';
+}
+
+function isVideoUrl(url) {
+  return MEDIA_FILTERS.video.includes(urlExt(url));
+}
+
+function markPosterReady(poster) {
+  poster.classList.add('has-thumb');
+  poster.classList.remove('placeholder');
+}
+
+function tryImagePoster(poster, urls, onFail) {
+  const [url, ...rest] = uniqueUrls(urls);
+  if (!url) {
+    if (onFail) onFail();
+    return;
+  }
+
+  const img = new Image();
+  img.onload = () => {
+    poster.style.backgroundImage = `url("${proxy(url)}")`;
+    markPosterReady(poster);
+  };
+  img.onerror = () => tryImagePoster(poster, rest, onFail);
+  img.src = proxy(url);
+}
+
+function tryVideoFramePoster(poster, urls) {
+  const [url, ...rest] = uniqueUrls(urls);
+  if (!url) return;
+
+  const vid = document.createElement('video');
+  vid.className = 'card-frame-poster';
+  vid.muted = true;
+  vid.playsInline = true;
+  vid.preload = 'auto';
+  vid.disablePictureInPicture = true;
+  vid.onloadeddata = () => markPosterReady(poster);
+  vid.onerror = () => {
+    vid.remove();
+    tryVideoFramePoster(poster, rest);
+  };
+  poster.appendChild(vid);
+  vid.src = proxy(url) + '#t=0.1';
+}
+
+function loadCardPoster(poster, v) {
+  const media = v.media || activeMedia;
+  const thumbs = uniqueUrls([...(Array.isArray(v.thumbs) ? v.thumbs : []), v.thumb]);
+
+  if (media === 'image') {
+    tryImagePoster(poster, uniqueUrls([...thumbs, v.url]).filter(u => !isVideoUrl(u)));
+    return;
+  }
+
+  const imageThumbs = thumbs.filter(u => !isVideoUrl(u));
+  const videoThumbs = thumbs.filter(isVideoUrl);
+  tryImagePoster(poster, imageThumbs, () => tryVideoFramePoster(poster, [...videoThumbs, v.url]));
+}
+
 // ── Lazy poster observer ──
 // For sites that publish thumbs (most) we use a regular <img>.
-// For sites with no thumbs (lainchan webm) we mount a muted <video preload=metadata>
+// For sites with no thumbs (or broken thumbs) we mount a muted <video preload=auto>
 // and seek to t=0.1 so the browser paints the first frame as a poster.
 const posterIO = new IntersectionObserver(entries => {
   for (const e of entries) {
@@ -397,43 +513,20 @@ const posterIO = new IntersectionObserver(entries => {
     const v = list[idx];
     if (!v) continue;
     const poster = e.target.querySelector('.card-poster');
-
-    if (v.thumb) {
-      const img = new Image();
-      img.onload = () => {
-        poster.style.backgroundImage = `url("${proxy(v.thumb)}")`;
-        poster.classList.add('has-thumb');
-        poster.classList.remove('placeholder');
-      };
-      img.src = proxy(v.thumb);
-      continue;
-    }
-
-    // Fallback: first-frame snapshot via <video>.
-    const vid = document.createElement('video');
-    vid.className = 'card-frame-poster';
-    vid.muted = true;
-    vid.playsInline = true;
-    vid.preload = 'metadata';
-    vid.src = proxy(v.url) + '#t=0.1';
-    vid.onloadeddata = () => {
-      poster.classList.add('has-thumb');
-      poster.classList.remove('placeholder');
-    };
-    poster.appendChild(vid);
+    loadCardPoster(poster, v);
   }
 }, { rootMargin: '700px 0px' });
 
 // ── Card factory ──
 function createCard(v, vidIdx) {
+  const isImage = (v.media || activeMedia) === 'image';
   const card = document.createElement('div');
-  card.className = 'card';
+  card.className = 'card' + (isImage ? ' image-card' : '');
   card.dataset.vidIdx = vidIdx;
   card.innerHTML = `
     <div class="card-thumb">
       <div class="card-poster placeholder"></div>
-      <video class="preview" muted loop playsinline preload="none"></video>
-      <div class="play-btn"><div class="play-icon"></div></div>
+      ${isImage ? '' : '<video class="preview" muted loop playsinline preload="none"></video><div class="play-btn"><div class="play-icon"></div></div>'}
       <div class="card-ext">${v.ext || 'mp4'}</div>
       ${v.size ? `<div class="card-size">${fmtSize(v.size)}</div>` : ''}
     </div>
@@ -445,13 +538,15 @@ function createCard(v, vidIdx) {
   const thumb = card.querySelector('.card-thumb');
   const prev  = card.querySelector('video.preview');
   let timer;
-  thumb.addEventListener('mouseenter', () => {
-    timer = setTimeout(() => {
-      if (!prev.src) prev.src = proxy(v.url);
-      prev.play().catch(() => {});
-    }, 450);
-  });
-  thumb.addEventListener('mouseleave', () => { clearTimeout(timer); prev.pause(); });
+  if (!isImage && prev) {
+    thumb.addEventListener('mouseenter', () => {
+      timer = setTimeout(() => {
+        if (!prev.src) prev.src = proxy(v.url);
+        prev.play().catch(() => {});
+      }, 450);
+    });
+    thumb.addEventListener('mouseleave', () => { clearTimeout(timer); prev.pause(); });
+  }
 
   card.addEventListener('click', () => openModal(vidIdx));
   return card;
@@ -464,7 +559,7 @@ function renderChunk() {
   const start = rendered;
   const end   = Math.min(start + CHUNK, list.length);
   if (start >= end) {
-    hint.textContent = list.length ? `All shown · ${list.length} videos` : '';
+    hint.textContent = list.length ? `All shown · ${list.length} ${mediaLabel(list.length)}` : '';
     return;
   }
 
@@ -477,7 +572,7 @@ function renderChunk() {
 
   hint.textContent = rendered < list.length
     ? `Showing ${rendered} of ${list.length} · scroll ↓`
-    : `All shown · ${list.length} videos`;
+    : `All shown · ${list.length} ${mediaLabel(list.length)}`;
 }
 
 // ── Infinite scroll ──
@@ -519,7 +614,7 @@ async function loadBoard(siteId, boardId) {
 
   const t0 = performance.now();
   try {
-    const url = `/api/snapshot?site=${encodeURIComponent(siteId)}&board=${encodeURIComponent(boardId)}&_=${Date.now()}`;
+    const url = `/api/snapshot?site=${encodeURIComponent(siteId)}&board=${encodeURIComponent(boardId)}&media=${encodeURIComponent(activeMedia)}&_=${Date.now()}`;
     const r = await fetch(url, { cache: 'no-store' });
     const data = await r.json();
     if (!data.ok) throw new Error(data.error || 'fetch error');
@@ -532,7 +627,7 @@ async function loadBoard(siteId, boardId) {
     grid.innerHTML = '';
 
     if (!videos.length) {
-      grid.innerHTML = '<div class="empty"><div class="ico">🎬</div><b>No videos found</b><p>No mp4/webm on this board right now</p></div>';
+      grid.innerHTML = `<div class="empty"><div class="ico">${activeMedia === 'image' ? 'IMG' : '🎬'}</div><b>No ${mediaLabel(0)} found</b><p>No ${activeMedia === 'image' ? 'images' : 'mp4/webm'} on this board right now</p></div>`;
     } else {
       renderChunk();
       scheduleRenderMore();
@@ -541,7 +636,7 @@ async function loadBoard(siteId, boardId) {
     updateCount();
     updateDownloadButton();
     const ms = Math.round(performance.now() - t0);
-    updateTop(`${videos.length} videos · loaded in ${ms}ms`);
+    updateTop(`${videos.length} ${mediaLabel()} · loaded in ${ms}ms`);
     setStatus('ok', 'ok');
   } catch (e) {
     if (siteId !== activeSite || boardId !== activeBoard) return;
@@ -601,7 +696,7 @@ function showSkeletons(n) {
 }
 
 // ── Modal ──
-const modal = $('modal'), mVid = $('mVid'), sheetTitle = $('sheetTitle');
+const modal = $('modal'), mVid = $('mVid'), mImg = $('mImg'), sheetTitle = $('sheetTitle');
 
 // Volume persistence (across videos and reloads)
 const VOLUME_KEY = 'vw_volume';
@@ -628,19 +723,27 @@ function openModal(idx) {
   if (idx < 0 || idx >= list.length) return;
   currentIdx = idx;
   const v = list[idx];
+  const isImage = (v.media || activeMedia) === 'image';
 
   mVid.pause();
   mVid.innerHTML = '';
   mVid.removeAttribute('src');
   mVid.load();
+  mVid.hidden = isImage;
+  mImg.hidden = !isImage;
+  mImg.removeAttribute('src');
 
-  const src = document.createElement('source');
-  src.src  = proxy(v.url);
-  src.type = v.ext === 'webm' ? 'video/webm' : 'video/mp4';
-  mVid.appendChild(src);
-  mVid.load();
-  applyVolumePrefs();
-  mVid.addEventListener('canplay', () => mVid.play().catch(() => {}), { once: true });
+  if (isImage) {
+    mImg.src = proxy(v.url);
+  } else {
+    const src = document.createElement('source');
+    src.src  = proxy(v.url);
+    src.type = v.ext === 'webm' ? 'video/webm' : 'video/mp4';
+    mVid.appendChild(src);
+    mVid.load();
+    applyVolumePrefs();
+    mVid.addEventListener('canplay', () => mVid.play().catch(() => {}), { once: true });
+  }
 
   sheetTitle.textContent = `${v.site} · /${v.board}/ · #${v.thread} · ${v.url.split('/').pop()}`;
   modal.classList.add('open');
@@ -655,6 +758,9 @@ function closeModal() {
   mVid.innerHTML = '';
   mVid.removeAttribute('src');
   mVid.load();
+  mVid.hidden = false;
+  mImg.hidden = true;
+  mImg.removeAttribute('src');
   currentIdx = -1;
 }
 
@@ -686,6 +792,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape')      { closeModal(); return; }
   if (e.key === 'ArrowRight')  { $('nextBtn').click(); return; }
   if (e.key === 'ArrowLeft')   { $('prevBtn').click(); return; }
+  if ((currentVideo()?.media || activeMedia) === 'image') return;
   if (e.key === ' ')           { e.preventDefault(); mVid.paused ? mVid.play().catch(()=>{}) : mVid.pause(); return; }
   if (e.key === 'f' || e.key === 'F') { mVid.requestFullscreen?.().catch(()=>{}); return; }
   if (e.key === 'm' || e.key === 'M') { mVid.muted = !mVid.muted; return; }
@@ -739,7 +846,7 @@ ssBtn.onclick = () => {
   if (ssRaf) { stopSlideshow(); return; }
   if (!modal.classList.contains('open')) {
     if (filteredVideos().length) openModal(0);
-    else { showToast('No videos'); return; }
+    else { showToast(`No ${mediaLabel(0)}`); return; }
   }
   startSlideshow();
 };
@@ -763,6 +870,7 @@ $('densityBtn').onclick = () => {
 // ── Init ──
 async function init() {
   buildThemeSwitcher();
+  applyMediaMode(activeMedia);
   applyDensity(document.documentElement.dataset.density);
   setStatus('loading', 'initializing…');
   try {

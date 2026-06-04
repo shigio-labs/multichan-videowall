@@ -1,7 +1,7 @@
 // Minimal service worker — just enables installability.
 // We deliberately do NOT cache API/proxy responses (the whole point is fresh data),
 // but we cache the app shell so the UI loads instantly when installed.
-const SHELL = 'vw-shell-v5';
+const SHELL = 'vw-shell-v6';
 const SHELL_FILES = [
   '/',
   '/index.html',

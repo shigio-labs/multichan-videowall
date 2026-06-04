@@ -1,6 +1,6 @@
 # 🎞️ Multichan Video Wall
 
-> Desktop & web video aggregator for imageboards. Streams **mp4 / webm** from threads on **2ch.hk · 4chan · lainchan · kohlchan (krautchan) · kissu.moe · wizchan** through a unified UI with **5 themes** and **light / dark modes**.
+> Desktop & web media aggregator for imageboards. Streams **mp4 / webm** videos and **jpg / png / gif / webp** images from **2ch.hk · 4chan · lainchan · kohlchan (krautchan) · kissu.moe · wizchan · Uboachan · Smuglo · Arisuchan · Endchan** through a unified UI with **5 themes** and **light / dark modes**.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Electron](https://img.shields.io/badge/electron-42-9feaf9.svg)](https://www.electronjs.org/)
@@ -15,21 +15,22 @@
 
 ## ✨ Features
 
-- 🌐 **6 imageboards** out of the box: `2ch.hk` · `4chan` · `lainchan` · `kohlchan/krautchan` · `kissu.moe` · `wizchan` — **90+ boards** total
+- 🌐 **10 imageboards** out of the box: `2ch.hk` · `4chan` · `lainchan` · `kohlchan/krautchan` · `kissu.moe` · `wizchan` · `Uboachan` · `Smuglo` · `Arisuchan` · `Endchan` — **100+ boards** total
+- 🖼️ **Video / IMG mode switcher** — browse videos or images from the same boards
 - 🎨 **5 themes** with one-click switcher:
   - **Terminal Hacker** (default) — green-on-black CRT vibes
   - **Glass Cathedral** — frosted glassmorphism with violet/cyan glows
   - **Brutalist Mono** — pure black/white, JetBrains Mono ALL CAPS
   - **Cyberpunk Neon** — pink + cyan neon borders with scanlines
   - **Soft Pastel** — light mode, cream background, Notion-style
-- 📺 **In-grid hover preview** + full modal player with keyboard shortcuts
+- 📺 **In-grid hover preview** for videos + modal player/viewer with keyboard shortcuts
 - 🔁 **Always fresh** — no server-side cache, every request hits the source. New uploads visible immediately
 - 📦 **Compact / Comfy** density toggle — 4 or 6 columns, your call
 - 🔉 **Volume & mute persist** — survives between videos and reloads
 - ⌨️ **Keyboard navigation** — `←→` for prev/next, `Space` for pause, `F` for fullscreen, `M` for mute, `Esc` to close
 - 🎬 **Slideshow mode** — auto-advance every 8 seconds
 - 🔍 **Board search & category grouping** in sidebar
-- 💾 **Direct download** — proxy serves `Content-Disposition: attachment` on `?dl=1`
+- 💾 **Direct and batch download** — save one item or download all board media for the selected mode to a chosen folder in Electron
 - 📲 **PWA installable** + standalone Electron desktop app
 - 🚀 **Self-hosted, single binary** — no signups, no telemetry, no ads, no cloud
 
@@ -43,8 +44,8 @@ Grab the latest from [**Releases**](https://github.com/shigio-labs/multichan-vid
 
 | File | What it does |
 |---|---|
-| `VideoWall-x.y.z-portable.exe` | Single self-contained file. Double-click → works. No install, no registry. Put on a USB stick if you want |
-| `VideoWall-x.y.z-x64.exe` | NSIS installer. Installs to `Program Files`, makes Start Menu + Desktop shortcuts |
+| `multichan-videowall-x.y.z-portable.exe` | Single self-contained file. Double-click → works. No install, no registry. Put on a USB stick if you want |
+| `multichan-videowall-x.y.z-x64.exe` | NSIS installer. Installs to `Program Files`, makes Start Menu + Desktop shortcuts |
 
 > **Note:** Windows Defender SmartScreen may warn on first launch (the `.exe` isn't code-signed — code-signing certs cost $200+/yr). Click **More info → Run anyway**.
 
@@ -73,6 +74,10 @@ Requires **Node.js 20+**.
 | **[kohlchan](https://krautchan.org/)** | 🇩🇪 Deutsch | LynxChan | 9 | `/b/` (Bernd), `/int/`, `/ru/`, `/a/`, `/jp/`… |
 | **[kissu.moe](https://kissu.moe/)** | 🗾 日本語/Otaku | vichan | 5 | `/qa/`, `/jp/`, `/ec/`, `/spg/` |
 | **[wizchan](https://wizchan.org/)** | 🧙 English | vichan | 7 | `/wiz/`, `/dep/`, `/jp/`, `/lounge/`… |
+| **[Uboachan](https://uboachan.net/)** | 🌐 English | vichan | 8 | `/yume/`, `/yn/`, `/fg/`, `/og/`, `/rec/`, `/o/`, `/lit/`, `/ot/` |
+| **[Smuglo](https://smuglo.li/)** | 🌐 English | vichan | 2 | `/a/`, `/kohi/` |
+| **[Arisuchan](https://arisuchan.moe/)** | 🌐 English (tech) | vichan | 2 | `/λ/`, `/r/` |
+| **[Endchan](https://endchan.org/)** | 🌐 English | Endchan API | 7 | `/b/`, `/pol/`, `/tech/`, `/v/`, `/a/`, `/am/`, `/operate/` |
 
 Boards are grouped by category in the sidebar: **Random / Tech / Games / Anime / Media / Lifestyle / Adult**.
 
@@ -127,7 +132,7 @@ Switch via the dot row in the top-right corner. Choice persists in `localStorage
    └────────┘         └──────────┘
 ```
 
-- **`server.js`** — Express server with 4 fetcher adapters (`vichan`, `4chan`, `dvach`, `lynxchan`), `/api/sites`, `/api/snapshot`, `/proxy`. ~400 lines.
+- **`server.js`** — Express server with fetcher adapters (`vichan`, `4chan`, `dvach`, `lynxchan`, `endchan`), `/api/sites`, `/api/snapshot`, `/proxy`.
 - **`electron/main.cjs`** — Boots the embedded server on a free port, opens BrowserWindow.
 - **`public/`** — Vanilla JS frontend (no framework). `app.js` ~400 lines, `styles.css` ~600 lines (themes + responsive).
 
@@ -155,7 +160,7 @@ The proxy layer:
 > **This software is a viewer / aggregator. It does not host, store, or modify any content. All media files are streamed directly from third-party imageboards listed above through a server-side proxy purely for CORS and `Referer` reasons.**
 >
 > - The author **does not own, operate, or moderate** any of the linked imageboards
-> - The author **is not affiliated** with 2ch.hk, 4chan, lainchan, kohlchan, krautchan, kissu.moe, wizchan, or any of their operators
+> - The author **is not affiliated** with 2ch.hk, 4chan, lainchan, kohlchan, krautchan, kissu.moe, wizchan, Uboachan, Smuglo, Arisuchan, Endchan, or any of their operators
 > - **No content is mirrored or cached** server-side. Every request hits the upstream live; turn off the app — content is gone
 > - The **content posted on those imageboards is created and moderated (or not moderated) by their respective communities and operators**, not by this project
 > - Some boards contain **NSFW / 18+ material** (clearly labelled with the `🔞` icon and grouped under the "18+" category in the sidebar). By using this software you confirm you are **of legal age in your jurisdiction** to view such content
@@ -194,4 +199,4 @@ For new boards: please run `npm start` and verify with `curl http://localhost:30
 
 ---
 
-<sub>Tags: `imageboard` · `4chan-downloader` · `2ch` · `lainchan` · `kohlchan` · `krautchan` · `kissu` · `wizchan` · `vichan` · `lynxchan` · `makaba` · `video-aggregator` · `electron` · `pwa` · `self-hosted` · `webm` · `mp4`</sub>
+<sub>Tags: `imageboard` · `4chan-downloader` · `2ch` · `lainchan` · `kohlchan` · `krautchan` · `kissu` · `wizchan` · `uboachan` · `smuglo` · `arisuchan` · `endchan` · `vichan` · `lynxchan` · `makaba` · `video-aggregator` · `image-aggregator` · `electron` · `pwa` · `self-hosted` · `webm` · `mp4` · `jpg` · `png` · `gif` · `webp`</sub>

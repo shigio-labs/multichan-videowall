@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>multichan-videowall — 2ch / 4chan / lainchan / kohlchan / kissu / wizchan</title>
-  <meta name="description" content="Desktop & web video aggregator for imageboards: streams mp4/webm from threads on 2ch.hk, 4chan, lainchan, kohlchan (krautchan), kissu.moe, wizchan through a unified UI with 5 themes and dark/light modes."/>
-  <meta name="keywords" content="imageboard, video aggregator, 2ch, 2ch.hk, 4chan, lainchan, kohlchan, krautchan, kissu, wizchan, webm, mp4, vichan, lynxchan, makaba, video wall, electron"/>
+  <title>multichan-videowall — imageboard media wall</title>
+  <meta name="description" content="Desktop & web media aggregator for imageboards: streams videos and images from 2ch.hk, 4chan, lainchan, kohlchan, kissu.moe, wizchan, Uboachan, Smuglo, Arisuchan, and Endchan through a unified UI."/>
+  <meta name="keywords" content="imageboard, media aggregator, video aggregator, image aggregator, 2ch, 2ch.hk, 4chan, lainchan, kohlchan, krautchan, kissu, wizchan, uboachan, smuglo, arisuchan, endchan, webm, mp4, jpg, png, gif, vichan, lynxchan, makaba, electron"/>
   <meta name="author" content="shigio-labs"/>
   <meta property="og:title" content="multichan-videowall"/>
-  <meta property="og:description" content="Multi-site video aggregator for 2ch, 4chan, lainchan, kohlchan, kissu, wizchan. Desktop app + PWA."/>
+  <meta property="og:description" content="Multi-site media aggregator for videos and images from imageboards. Desktop app + PWA."/>
   <meta property="og:type" content="website"/>
   <meta name="twitter:card" content="summary"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -75,6 +75,11 @@
       </label>
 
       <div class="top-right">
+        <div class="media-mode" id="mediaMode" title="Media type">
+          <button class="mode-btn active" data-media="video">Video</button>
+          <button class="mode-btn" data-media="image">IMG</button>
+        </div>
+
         <div class="filter-bar">
           <select id="fExt" title="File type">
             <option value="">all</option>
@@ -94,7 +99,7 @@
           <span class="btn-ic">▶</span> Slideshow
         </button>
 
-        <button class="btn" id="downloadAllBtn" title="Download all videos from this board" hidden>
+        <button class="btn" id="downloadAllBtn" title="Download all media from this board" hidden>
           <span class="btn-ic">↓</span> Download all
         </button>
 
@@ -149,7 +154,10 @@
       </div>
     </div>
     <div class="ss-bar" id="ssBar"><div class="ss-bar-fill" id="ssBarFill"></div></div>
-    <div class="player-wrap"><video id="mVid" controls playsinline></video></div>
+    <div class="player-wrap">
+      <video id="mVid" controls playsinline></video>
+      <img id="mImg" class="modal-img" alt="" hidden/>
+    </div>
     <div class="sheet-keys">
       <div class="key-hint"><span class="key">←→</span> navigate</div>
       <div class="key-hint"><span class="key">Space</span> pause</div>

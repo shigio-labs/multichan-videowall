@@ -207,6 +207,70 @@ const SITES = {
     ],
   },
 
+  "uboachan": {
+    id: "uboachan",
+    name: "Uboachan",
+    lang: "English",
+    flag: "UB",
+    bases: ["https://uboachan.net"],
+    fetcher: "vichan",
+    boards: [
+      { id: "yume", title: "Yume Nikki", icon: "YN", category: "games" },
+      { id: "yn",   title: "Yume 2kki",  icon: "YN", category: "games" },
+      { id: "fg",   title: "Fangames",   icon: "FG", category: "games" },
+      { id: "og",   title: "Other Games",icon: "OG", category: "games" },
+      { id: "rec",  title: "Recovery",   icon: "RC", category: "random" },
+      { id: "o",    title: "Oekaki",     icon: "OK", category: "media" },
+      { id: "lit",  title: "Literature", icon: "LT", category: "media" },
+      { id: "ot",   title: "Off-topic",  icon: "OT", category: "random" },
+    ],
+  },
+
+  "smuglo": {
+    id: "smuglo",
+    name: "Smuglo",
+    lang: "English",
+    flag: "SM",
+    bases: ["https://smuglo.li"],
+    fetcher: "vichan",
+    boards: [
+      { id: "a",    title: "Anime", icon: "A", category: "anime" },
+      { id: "kohi", title: "Kohi",  icon: "K", category: "random" },
+    ],
+  },
+
+  "arisuchan": {
+    id: "arisuchan",
+    name: "Arisuchan",
+    lang: "English · tech",
+    flag: "AR",
+    bases: ["https://arisuchan.moe"],
+    fetcher: "vichan",
+    noVideoThumbs: true,
+    boards: [
+      { id: "λ", title: "Programming", icon: "L", category: "tech" },
+      { id: "r", title: "Random",      icon: "R", category: "random" },
+    ],
+  },
+
+  "endchan": {
+    id: "endchan",
+    name: "Endchan",
+    lang: "English",
+    flag: "EN",
+    bases: ["https://endchan.org"],
+    fetcher: "endchan",
+    boards: [
+      { id: "b",       title: "Random",     icon: "B",  category: "random" },
+      { id: "pol",     title: "Politics",   icon: "P",  category: "random" },
+      { id: "tech",    title: "Technology", icon: "T",  category: "tech" },
+      { id: "v",       title: "Games",      icon: "V",  category: "games" },
+      { id: "a",       title: "Anime",      icon: "A",  category: "anime" },
+      { id: "am",      title: "Alt-media",  icon: "AM", category: "media" },
+      { id: "operate", title: "Operate",    icon: "OP", category: "tech" },
+    ],
+  },
+
 };
 
 // ─── Allowed media domains for proxy ──────────────────────────────────────────
@@ -218,6 +282,10 @@ const ALLOWED_DOMAINS = [
   "kohlchan.net", "krautchan.org",
   "wizchan.org",
   "kissu.moe",
+  "uboachan.net",
+  "smuglo.li",
+  "arisuchan.moe",
+  "endchan.org",
 ];
 
 // ─── Network constants ────────────────────────────────────────────────────────
@@ -246,6 +314,10 @@ const REFERER_MAP = [
   ["krautchan.org", "https://krautchan.org/"],
   ["wizchan.org",   "https://wizchan.org/"],
   ["kissu.moe",     "https://kissu.moe/"],
+  ["uboachan.net",   "https://uboachan.net/"],
+  ["smuglo.li",      "https://smuglo.li/"],
+  ["arisuchan.moe",  "https://arisuchan.moe/"],
+  ["endchan.org",    "https://endchan.org/"],
 ];
 
 function proxyHeadersFor(url) {
@@ -281,8 +353,51 @@ function avgLatency(host) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const isVideoPath = p => /\.(mp4|webm)$/i.test(String(p || ""));
-const getExt      = p => /\.webm$/i.test(String(p || "")) ? "webm" : "mp4";
+const MEDIA_EXTS = {
+  video: new Set(["mp4", "webm"]),
+  image: new Set(["jpg", "jpeg", "png", "gif", "webp"]),
+};
+
+function normalizeMediaType(value) {
+  return value === "image" ? "image" : "video";
+}
+
+function getExt(p, mime = "") {
+  const pathExt = String(p || "").split("?")[0].match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
+  if (pathExt) return pathExt;
+  const mimeExt = String(mime || "").split("/").pop()?.toLowerCase();
+  if (mimeExt === "jpeg") return "jpg";
+  if (mimeExt === "svg+xml") return "svg";
+  return mimeExt || "";
+}
+
+function isMediaExt(ext, mediaType) {
+  return MEDIA_EXTS[normalizeMediaType(mediaType)].has(String(ext || "").toLowerCase());
+}
+
+function isMediaPath(p, mediaType, mime = "") {
+  return isMediaExt(getExt(p, mime), mediaType);
+}
+
+function uniqueUrls(urls) {
+  return [...new Set(urls.filter(Boolean))];
+}
+
+function vichanThumbUrls(base, boardId, file, ext, mediaType, site) {
+  if (!file?.tim || site.noVideoThumbs) return [];
+  const stem = `${base}/${encodeURIComponent(boardId)}/thumb/${file.tim}`;
+  const media = normalizeMediaType(mediaType);
+  if (media === "image") {
+    return uniqueUrls([
+      `${stem}.jpg`,
+      ext && !["jpg", "jpeg"].includes(ext) ? `${stem}.${ext}` : null,
+    ]);
+  }
+  return uniqueUrls([
+    `${stem}.jpg`,
+    ext ? `${stem}.${ext}` : null,
+  ]);
+}
 
 function normalizeMediaUrl(maybeUrl, base) {
   try {
@@ -315,8 +430,12 @@ function dedup(videos) {
   });
 }
 
+function limitMediaList(videos) {
+  return dedup(videos).slice(0, MAX_VIDEOS);
+}
+
 // ─── 2ch.hk / Makaba fetcher ──────────────────────────────────────────────────
-async function fetchDvach(site, boardId) {
+async function fetchDvach(site, boardId, mediaType = "video") {
   const headers = siteHeaders(site);
   const paths = [
     `/${boardId}/threads.json`,
@@ -349,10 +468,12 @@ async function fetchDvach(site, boardId) {
         return posts.flatMap(p =>
           (p.files || []).map(f => {
             const url = normalizeMediaUrl(f.path || f.fullname, active.base);
-            if (!url || !isVideoPath(url)) return null;
+            const ext = getExt(url);
+            if (!url || !isMediaExt(ext, mediaType)) return null;
             return {
               url,
-              ext:    getExt(url),
+              ext,
+              media:  normalizeMediaType(mediaType),
               thumb:  normalizeMediaUrl(f.thumbnail || f.tn_path, active.base),
               size:   f.size || 0,
               thread: num,
@@ -370,11 +491,11 @@ async function fetchDvach(site, boardId) {
     results.push(...(await p));
     if (results.length >= MAX_VIDEOS) break;
   }
-  return dedup(results);
+  return limitMediaList(results);
 }
 
 // ─── 4chan fetcher ────────────────────────────────────────────────────────────
-async function fetch4chan(site, boardId) {
+async function fetch4chan(site, boardId, mediaType = "video") {
   const apiBase   = site.bases[0];
   const mediaBase = site.mediaBase;
   const headers   = siteHeaders(site);
@@ -401,10 +522,11 @@ async function fetch4chan(site, boardId) {
         return posts.flatMap(p => {
           if (!p.tim || !p.ext) return [];
           const ext = String(p.ext).replace(".", "").toLowerCase();
-          if (ext !== "mp4" && ext !== "webm") return [];
+          if (!isMediaExt(ext, mediaType)) return [];
           return [{
             url:    `${mediaBase}/${boardId}/${p.tim}${p.ext}`,
             ext,
+            media:  normalizeMediaType(mediaType),
             thumb:  `${mediaBase}/${boardId}/${p.tim}s.jpg`,
             size:   p.fsize ? Math.round(p.fsize / 1024) : 0,
             thread: num,
@@ -421,11 +543,11 @@ async function fetch4chan(site, boardId) {
     results.push(...(await p));
     if (results.length >= MAX_VIDEOS) break;
   }
-  return dedup(results);
+  return limitMediaList(results);
 }
 
 // ─── Vichan / Lainchan fetcher ────────────────────────────────────────────────
-async function fetchVichan(site, boardId) {
+async function fetchVichan(site, boardId, mediaType = "video") {
   const base    = site.bases[0];
   const headers = siteHeaders(site);
 
@@ -458,13 +580,14 @@ async function fetchVichan(site, boardId) {
           }
           return files.flatMap(f => {
             const ext = String(f.ext).replace(".", "").toLowerCase();
-            if (ext !== "mp4" && ext !== "webm") return [];
-            // Vichan generates .jpg thumbs for videos. Sites where this is wrong
-            // (e.g. lainchan never generates webm thumbs) set noVideoThumbs.
+            if (!isMediaExt(ext, mediaType)) return [];
+            const thumbs = vichanThumbUrls(base, boardId, f, ext, mediaType, site);
             return [{
               url:    `${base}/${encodeURIComponent(boardId)}/src/${f.tim}${f.ext}`,
               ext,
-              thumb:  site.noVideoThumbs ? null : `${base}/${encodeURIComponent(boardId)}/thumb/${f.tim}.jpg`,
+              media:  normalizeMediaType(mediaType),
+              thumb:  thumbs[0] || null,
+              thumbs,
               size:   f.fsize ? Math.round(f.fsize / 1024) : 0,
               thread: num,
               board:  boardId,
@@ -481,11 +604,11 @@ async function fetchVichan(site, boardId) {
     results.push(...(await p));
     if (results.length >= MAX_VIDEOS) break;
   }
-  return dedup(results);
+  return limitMediaList(results);
 }
 
-// ─── LynxChan fetcher (kohlchan, endchan) ────────────────────────────────────
-async function fetchLynxchan(site, boardId) {
+// ─── LynxChan fetcher (kohlchan) ────────────────────────────────────
+async function fetchLynxchan(site, boardId, mediaType = "video") {
   const headers = siteHeaders(site);
 
   // Catalog returns array of OP threads; sometimes we get OP files there too.
@@ -512,11 +635,12 @@ async function fetchLynxchan(site, boardId) {
     const out = [];
     for (const f of (post.files || [])) {
       if (!f.path) continue;
-      const ext = (f.path.match(/\.([a-z0-9]+)$/i) || [])[1]?.toLowerCase();
-      if (ext !== "mp4" && ext !== "webm") continue;
+      const ext = getExt(f.path, f.mime);
+      if (!isMediaExt(ext, mediaType)) continue;
       out.push({
         url:    new URL(f.path, active.base).toString(),
         ext,
+        media:  normalizeMediaType(mediaType),
         thumb:  f.thumb ? new URL(f.thumb, active.base).toString() : null,
         size:   f.size ? Math.round(f.size / 1024) : 0,
         thread: num,
@@ -543,7 +667,67 @@ async function fetchLynxchan(site, boardId) {
     results.push(...(await p));
     if (results.length >= MAX_VIDEOS) break;
   }
-  return dedup(results);
+  return limitMediaList(results);
+}
+
+// ─── Endchan fetcher ──────────────────────────────────────────────────────────
+async function fetchEndchan(site, boardId, mediaType = "video") {
+  const base = site.bases[0];
+  const headers = siteHeaders(site);
+
+  let catalog = [];
+  try {
+    const json = await fetchJson(`${base}/${boardId}/catalog.json`, headers);
+    if (!Array.isArray(json)) throw new Error("bad catalog");
+    catalog = json;
+    logI(`endchan ${boardId} catalog: ${catalog.length}`);
+  } catch (e) {
+    throw new Error(`Endchan catalog /${boardId}/ unavailable: ${e.message}`);
+  }
+
+  const nums = catalog.map(t => String(t.threadId || t.postId || t.id)).filter(Boolean).slice(0, MAX_THREADS);
+  const limit = pLimit(5);
+
+  const collectFiles = (post, num) => {
+    const out = [];
+    for (const f of (post.files || [])) {
+      const rawPath = f.path || f.url || f.href;
+      if (!rawPath) continue;
+      const ext = getExt(rawPath, f.mime);
+      if (!isMediaExt(ext, mediaType)) continue;
+      const url = normalizeMediaUrl(rawPath, base);
+      if (!url) continue;
+      out.push({
+        url,
+        ext,
+        media:  normalizeMediaType(mediaType),
+        thumb:  f.thumb ? normalizeMediaUrl(f.thumb, base) : null,
+        size:   f.size ? Math.round(f.size / 1024) : 0,
+        thread: num,
+        board:  boardId,
+        site:   site.id,
+      });
+    }
+    return out;
+  };
+
+  const promises = nums.map(num =>
+    limit(async () => {
+      try {
+        const data = await fetchJson(`${base}/${boardId}/res/${num}.json`, headers);
+        const all = [...collectFiles(data, num)];
+        for (const p of (data.posts || [])) all.push(...collectFiles(p, num));
+        return all;
+      } catch { return []; }
+    })
+  );
+
+  const results = [];
+  for (const p of promises) {
+    results.push(...(await p));
+    if (results.length >= MAX_VIDEOS) break;
+  }
+  return limitMediaList(results);
 }
 
 const FETCHERS = {
@@ -551,6 +735,7 @@ const FETCHERS = {
   "4chan":    fetch4chan,
   "vichan":   fetchVichan,
   "lynxchan": fetchLynxchan,
+  "endchan":  fetchEndchan,
 };
 
 // ─── Rate limiter ─────────────────────────────────────────────────────────────
@@ -597,6 +782,7 @@ app.get("/api/snapshot", rateLimit, async (req, res) => {
   metrics.snapshotRequests++;
   const siteId  = String(req.query.site  || "2ch").replace(/[^a-z0-9]/gi, "");
   const boardId = String(req.query.board || "b").trim();
+  const mediaType = normalizeMediaType(req.query.media);
 
   const site = SITES[siteId];
   if (!site) return res.status(404).json({ ok: false, error: "Unknown site" });
@@ -608,20 +794,21 @@ app.get("/api/snapshot", rateLimit, async (req, res) => {
 
   const t0 = Date.now();
   try {
-    const videos = await fetcher(site, boardId);
+    const videos = await fetcher(site, boardId, mediaType);
     res.set("Cache-Control", "no-store, no-cache, must-revalidate");
     res.json({
       ok:     true,
       site:   site.id,
       board:  boardId,
+      media:  mediaType,
       count:  videos.length,
       tookMs: Date.now() - t0,
       videos,
     });
-    logI(`snapshot ${site.id}/${boardId}: ${videos.length} videos in ${Date.now()-t0}ms`);
+    logI(`snapshot ${site.id}/${boardId}/${mediaType}: ${videos.length} items in ${Date.now()-t0}ms`);
   } catch (e) {
     metrics.errors++;
-    logE(`snapshot ${site.id}/${boardId}: ${e.message}`);
+    logE(`snapshot ${site.id}/${boardId}/${mediaType}: ${e.message}`);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
@@ -670,7 +857,7 @@ app.get("/proxy", async (req, res) => {
     if (!upstream.ok || !upstream.body)
       return res.status(upstream.status || 502).send("Upstream error");
 
-    res.setHeader("Content-Type", upstream.headers.get("content-type") || "video/mp4");
+    res.setHeader("Content-Type", upstream.headers.get("content-type") || "application/octet-stream");
     res.setHeader("Cache-Control", "public, max-age=3600");
     for (const h of ["content-length", "accept-ranges", "content-range"]) {
       const v = upstream.headers.get(h);
